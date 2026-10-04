@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>PC Crypto Manager</title>
+    <style>
+        body { background-color: #f0f0f0; color: #000000; font-family: "Segoe UI", sans-serif; padding: 20px; margin: 0; }
+        .container { background: #ffffff; max-width: 900px; margin: 0 auto; padding: 20px; border: 1px solid #d9d9d9; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border-radius: 4px; }
+        .header-section { background: #e1e1e1; padding: 15px; border-radius: 4px; border: 1px solid #ccc; text-align: center; margin-bottom: 20px; }
+        h1 { margin: 0; font-size: 1.8rem; color: #333; }
+        .clock { font-size: 2rem; font-weight: bold; font-family: monospace; margin-top: 5px; }
+        .pc-notepad { background: #ffffff; border: 1px solid #ababab; border-radius: 3px; box-shadow: 1px 1px 5px rgba(0,0,0,0.1); }
+        .menu-bar { background: #dcdcdc; padding: 6px 12px; font-size: 0.9rem; border-bottom: 1px solid #b5b5b5; user-select: none; font-weight: 500; }
+        .menu-bar span { margin-right: 15px; cursor: pointer; }
+        .main-layout { display: flex; gap: 20px; padding: 20px; flex-wrap: wrap; }
+        .generator-box, .locker-box { flex: 1; min-width: 300px; background: #f9f9f9; border: 1px solid #d9d9d9; border-radius: 4px; padding: 15px; text-align: left; }
+        h3, h4 { margin-top: 0; color: #2b2b2b; border-bottom: 2px solid #dcdcdc; padding-bottom: 5px; }
+        .input-group, .checkbox-group { margin-bottom: 12px; }
+        #pass-length { width: 50px; padding: 3px; border: 1px solid #ababab; }
+        button { border: 1px solid #ababab; padding: 8px 12px; cursor: pointer; background: #e1e1e1; font-weight: 500; font-size: 0.9rem; border-radius: 3px; }
+        button:hover { background: #cee5f7; border-color: #1883d7; }
+        .btn-action, .btn-save { width: 100%; margin-top: 5px; }
+        .btn-save { background: #cee5f7; font-weight: bold; }
+        .result-display { display: flex; gap: 5px; margin-top: 10px; }
+        #generated-pass, #account-label { flex: 1; padding: 8px; border: 1px solid #ababab; border-radius: 3px; font-family: monospace; font-size: 1rem; }
+        #account-label { width: 100%; box-sizing: border-box; margin-bottom: 8px; }
+        .table-wrapper { max-height: 300px; overflow-y: auto; background: #fff; border: 1px solid #ababab; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { padding: 8px; border: 1px solid #d9d9d9; text-align: left; }
+        th { background: #dcdcdc; font-weight: bold; }
+        tr:nth-child(even) { background: #f2f2f2; }
+        .btn-danger { background: #ffcccc; color: #cc0000; border-color: #cc0000; padding: 4px 8px; font-size: 0.8rem; }
+        .btn-danger:hover { background: #ff9999; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header-section">
+            <h1>[+] Termux Secure Crypto Manager</h1>
+            <div id="digital-clock" class="clock">00:00:00</div>
+        </div>
+        <div class="pc-notepad">
+            <div class="menu-bar">
+                <span>File</span><span>Tools</span><span>Encryption</span>
+                <span onclick="clearAllData()" style="color:#ff3333;float:right;font-weight:bold;">⚠️ Wipe All Data</span>
+            </div>
+            <div class="main-layout">
+                <div class="generator-box">
+                    <h3>🔐 Generate Password</h3>
+                    <div class="input-group">
+                        <label>Length: <input type="number" id="pass-length" min="6" max="30" value="12"></label>
+                    </div>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" id="include-upper" checked> Uppercase (A-Z)</label><br>
+                        <label><input type="checkbox" id="include-numbers" checked> Numbers (0-9)</label><br>
+                        <label><input type="checkbox" id="include-symbols" checked> Symbols (@#\$!)</label>
+                    </div>
+                    <button onclick="generatePassword()" class="btn-action">⚡ Generate Secure Password</button>
+                    <div class="result-display">
+                        <input type="text" id="generated-pass" readonly placeholder="Your password will appear here...">
+                        <button onclick="copyToClipboard()" class="btn-small">📋 Copy</button>
+                    </div>
+                    <hr style="border:1px solid #d9d9d9;margin:15px 0;">
+                    <div class="save-form">
+                        <h4>💾 Save to Encrypted Locker</h4>
+                        <input type="text" id="account-label" placeholder="Account Name (e.g., Google, Facebook)">
+                        <button onclick="savePasswordToLocker()" class="btn-save">🔒 Encrypt & Save</button>
+                    </div>
+                </div>
+                <div class="locker-box">
+                    <h3>🗄️ Encrypted Vault</h3>
+                    <div class="table-wrapper">
+                        <table id="vault-table">
+                            <thead>
+                                <tr><th>Account</th><th>Encrypted Password</th><th>Action</th></tr>
+                            </thead>
+                            <tbody id="vault-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function updateClock(){
+            const now=new Date();
+            let h=now.getHours(),m=now.getMinutes(),s=now.getSeconds();
+            document.getElementById("digital-clock").innerText=(h<10?"0"+h:h)+":"+(m<10?"0"+m:m)+":"+(s<10?"0"+s:s);
+        }
+        setInterval(updateClock,1000);
+        updateClock();
+
+        const customCipher={
+            encrypt:(str)=>{ return btoa(str).split("").reverse().join(""); },
+            decrypt:(str)=>{
+                try{ return atob(str.split("").reverse().join("")); }
+                catch(e){ return "Decryption Error"; }
+            }
+        };
+
+        function generatePassword(){
+            const length=parseInt(document.getElementById("pass-length").value);
+            const upper=document.getElementById("include-upper").checked;
+            const num=document.getElementById("include-numbers").checked;
+            const sym=document.getElementById("include-symbols").checked;
+            let charset="abcdefghijklmnopqrstuvwxyz";
+            if(upper) charset+="ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            if(num) charset+="0123456789";
+            if(sym) charset+="@#\$!%^&*()_+";
+            let password="";
+            for(let i=0;i<length;i++){
+                const randomIndex=Math.floor(Math.random()*charset.length);
+                password+=charset[randomIndex];
+            }
+            document.getElementById("generated-pass").value=password;
+        }
+
+        function copyToClipboard(){
+            const el=document.getElementById("generated-pass");
+            if(!el.value){ alert("Generate a password first!"); return; }
+            el.select();
+            document.execCommand("copy");
+            alert("Password copied to clipboard!");
+        }
+
+        function savePasswordToLocker(){
+            const label=document.getElementById("account-label").value.trim();
+            const pass=document.getElementById("generated-pass").value;
+            if(!label||!pass){ alert("Please provide both Account Name and Password!"); return; }
+            const encrypted=customCipher.encrypt(pass);
+            let vault=JSON.parse(localStorage.getItem("crypto_vault")||"[]");
+            vault.push({id:Date.now(),label:label,password:encrypted});
+            localStorage.setItem("crypto_vault",JSON.stringify(vault));
+            document.getElementById("account-label").value="";
+            renderVault();
+        }
+
+        function deleteEntry(id){
+            if(confirm("Delete this entry permanently?")){
+                let vault=JSON.parse(localStorage.getItem("crypto_vault")||"[]");
+                vault=vault.filter(item=>item.id!==id);
+                localStorage.setItem("crypto_vault",JSON.stringify(vault));
+                renderVault();
+            }
+        }
+
+        function viewDecrypted(encryptedStr){
+            alert("Decrypted Password: " + customCipher.decrypt(encryptedStr));
+        }
+
+        function clearAllData(){
+            if(confirm("WARNING: Wipe memory permanently?")){
+                localStorage.removeItem("crypto_vault");
+                renderVault();
+            }
+        }
+
+        function renderVault(){
+            const vault=JSON.parse(localStorage.getItem("crypto_vault")||"[]");
+            const tbody=document.getElementById("vault-body");
+            tbody.innerHTML="";
+            if(vault.length===0){
+                tbody.innerHTML="<tr><td colspan=\"3\" style=\"text-align:center;color:#777;\">Vault is empty.</td></tr>";
+                return;
+            }
+            vault.forEach(item=>{
+                const tr=document.createElement("tr");
+                tr.innerHTML=`<td><strong>${item.label}</strong></td><td style="font-family:monospace;color:#777;font-size:0.8rem;">${item.password}</td><td><button onclick="viewDecrypted('${item.password}')">👁️ View</button> <button class="btn-danger" onclick="deleteEntry(${item.id})">🗑️ Delete</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        window.onload=function(){ updateClock(); renderVault(); };
+    </script>
+</body>
+</html>
